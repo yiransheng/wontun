@@ -3,12 +3,15 @@ use std::os::fd::{AsRawFd, BorrowedFd};
 use std::sync::Arc;
 use std::{eprintln, io};
 
-use parking_lot::{RwLock, RwLockReadGuard};
+
 use socket2::{Domain, Protocol, Socket, Type};
 use tun_tap::Iface;
 
+mod packet;
+mod peer;
 mod poll;
 
+use peer::{Endpoint, Peer};
 use poll::{Poll, Token};
 
 pub struct DeviceConfig<'a> {
@@ -26,16 +29,6 @@ pub struct Device {
 
     use_connected_peer: bool,
     listen_port: u16,
-}
-
-pub struct Peer {
-    endpoint: RwLock<Endpoint>,
-}
-
-#[derive(Default)]
-pub struct Endpoint {
-    pub addr: Option<SocketAddrV4>,
-    pub conn: Option<Arc<UdpSocket>>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -268,7 +261,7 @@ impl Device {
     }
 }
 
-fn new_udp_socket(port: u16) -> io::Result<UdpSocket> {
+pub fn new_udp_socket(port: u16) -> io::Result<UdpSocket> {
     let socket_addr = SocketAddr::from(([0, 0, 0, 0], port));
 
     let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
@@ -279,44 +272,4 @@ fn new_udp_socket(port: u16) -> io::Result<UdpSocket> {
     socket.bind(&socket_addr.into())?;
 
     Ok(socket.into())
-}
-
-impl Peer {
-    fn new(endpoint: Endpoint) -> Self {
-        Self {
-            endpoint: RwLock::new(endpoint),
-        }
-    }
-
-    fn endpoint(&self) -> RwLockReadGuard<Endpoint> {
-        self.endpoint.read()
-    }
-
-    fn set_endpoint(&self, addr: SocketAddrV4) -> (bool, Option<Arc<UdpSocket>>) {
-        let endpoint = self.endpoint.read();
-        if endpoint.addr == Some(addr) {
-            return (false, None);
-        }
-        drop(endpoint);
-
-        let mut endpoint = self.endpoint.write();
-        endpoint.addr = Some(addr);
-
-        (true, endpoint.conn.take())
-    }
-
-    fn connect_endpoint(&self, port: u16) -> io::Result<Arc<UdpSocket>> {
-        let mut endpoint = self.endpoint.write();
-        let addr = endpoint.addr.unwrap();
-
-        assert!(endpoint.conn.is_none());
-
-        let conn = new_udp_socket(port)?;
-        conn.connect(addr)?;
-        let conn = Arc::new(conn);
-
-        endpoint.conn = Some(Arc::clone(&conn));
-
-        Ok(conn)
-    }
 }
