@@ -4,10 +4,12 @@ use std::os::fd::{AsRawFd, BorrowedFd};
 use std::sync::Arc;
 use std::{eprintln, io};
 
+use allowed_ip::AllowedIps;
 use packet::Packet;
 use socket2::{Domain, Protocol, Socket, Type};
 use tun_tap::Iface;
 
+mod allowed_ip;
 mod packet;
 mod peer;
 mod poll;
@@ -29,6 +31,7 @@ pub struct Device {
     poll: Poll,
     peers_by_name: HashMap<PeerName, Arc<Peer>>,
     peers_by_index: Vec<Arc<Peer>>,
+    peers_by_ip: AllowedIps<Arc<Peer>>,
 
     use_connected_peer: bool,
     listen_port: u16,
@@ -106,6 +109,7 @@ impl Device {
             peer,
             peers_by_name: HashMap::new(),
             peers_by_index: Vec::new(),
+            peers_by_ip: AllowedIps::new(),
             use_connected_peer,
             listen_port,
         })
@@ -175,16 +179,20 @@ impl Device {
     fn handle_tun(&self, thread_data: &mut ThreadData) -> io::Result<()> {
         let buf = &mut thread_data.src_buf[..];
         while let Ok(nbytes) = self.iface.recv(buf) {
-            match etherparse::Ipv4HeaderSlice::from_slice(&buf[..nbytes]) {
+            let (src, dst) = match etherparse::Ipv4HeaderSlice::from_slice(&buf[..nbytes]) {
                 Ok(iph) => {
                     let src = iph.source_addr();
                     let dst = iph.destination_addr();
-                    eprintln!("Got Ipv4 packet of size: {nbytes}, {src} -> {dst}, from tun0");
+                    (src, dst)
                 }
                 _ => continue,
-            }
+            };
+            eprintln!("Got Ipv4 packet of size: {nbytes}, {src} -> {dst}, from tun0");
+            let Some(peer) = self.peers_by_ip.get(dst.into()) else {
+                continue;
+            };
 
-            let endpoint = self.peer.endpoint();
+            let endpoint = peer.endpoint();
             let _send_result = if let Some(ref conn) = endpoint.conn {
                 conn.send(&buf[..nbytes])
             } else if let Some(ref addr) = endpoint.addr {
