@@ -155,7 +155,8 @@ impl Peer {
 
     fn handle_handshake_init<'a>(&self, msg: HandshakeInit<'a>, dst: &'a mut [u8]) -> Action<'a> {
         let mut state = self.handshake_state.write();
-        if let HandshakeState::None = &*state {
+
+        if let HandshakeState::None | HandshakeState::Connected { .. } = &*state {
             eprintln!("  handle handshake init");
             *state = HandshakeState::HandshakeReceived {
                 remote_idx: msg.assigned_idx,
