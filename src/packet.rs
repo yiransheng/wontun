@@ -1,5 +1,6 @@
 use crate::peer::PeerName;
 
+#[derive(Debug)]
 pub enum Packet<'a> {
     HandshakeInit(HandshakeInit<'a>),
     HandshakeResponse(HandshakeResponse),
@@ -7,16 +8,19 @@ pub enum Packet<'a> {
     Empty,
 }
 
+#[derive(Debug)]
 pub struct HandshakeInit<'a> {
     pub sender_name: PeerName<&'a [u8]>,
     pub assigned_idx: u32,
 }
 
+#[derive(Debug)]
 pub struct HandshakeResponse {
     pub assigned_idx: u32,
     pub sender_idx: u32,
 }
 
+#[derive(Debug)]
 pub struct PacketData<'a> {
     pub sender_idx: u32,
     pub data: &'a [u8],
@@ -28,6 +32,7 @@ const PACKET_DATA: u8 = 3;
 
 const HANDSHAKE_INIT_SIZE: usize = 105;
 const HANDSHAKE_RESPONSE_SIZE: usize = 9;
+const DATA_MIN_SIZE: usize = 9;
 
 #[derive(Debug, Copy, Clone)]
 pub enum PackeParseError {
@@ -42,8 +47,8 @@ impl<'a> Packet<'a> {
         }
         match (src[0], src.len()) {
             (HANDSHAKE_INIT, HANDSHAKE_INIT_SIZE) => {
-                let remote_idx = u32::from_le_bytes(src[1..][..4].try_into().unwrap());
-                let sender_name = PeerName::from(&src[5..][..100]);
+                let remote_idx = u32::from_le_bytes(src[1..5].try_into().unwrap());
+                let sender_name = PeerName::from(&src[5..105]);
                 Ok(Packet::HandshakeInit(HandshakeInit {
                     sender_name,
                     assigned_idx: remote_idx,
@@ -58,7 +63,7 @@ impl<'a> Packet<'a> {
                     sender_idx,
                 }))
             }
-            (PACKET_DATA, _) => {
+            (PACKET_DATA, n) if n >= DATA_MIN_SIZE => {
                 let sender_idx = u32::from_le_bytes(src[1..5].try_into().unwrap());
 
                 Ok(Packet::Data(PacketData {

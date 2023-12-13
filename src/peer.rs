@@ -9,7 +9,7 @@ use crate::allowed_ip::AllowedIps;
 use crate::new_udp_socket;
 use crate::packet::{HandshakeInit, HandshakeResponse, Packet, PacketData};
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq)]
 pub struct PeerName<T = [u8; 100]>(T);
 
 pub struct Peer {
@@ -123,13 +123,28 @@ impl Peer {
 
             *state = HandshakeState::HandshakeSent;
 
+            eprintln!("Sending handshake: {:?}", &packet);
             Action::WriteToNetwork(&dst[..n])
         } else {
             Action::None
         }
     }
 
-    pub fn handle_packet<'a>(&self, packet: Packet<'a>, dst: &'a mut [u8]) -> Action<'a> {
+    pub fn encapsulate<'a>(&self, src: &'a [u8], dst: &'a mut [u8]) -> Action<'a> {
+        let state = self.handshake_state.read();
+        if let HandshakeState::Connected { remote_idx } = &*state {
+            let data = PacketData {
+                sender_idx: *remote_idx,
+                data: src,
+            };
+            let n = data.format(dst);
+            Action::WriteToNetwork(&dst[..n])
+        } else {
+            Action::None
+        }
+    }
+
+    pub fn handle_incoming_packet<'a>(&self, packet: Packet<'a>, dst: &'a mut [u8]) -> Action<'a> {
         match packet {
             Packet::Empty => Action::None,
             Packet::HandshakeInit(msg) => self.handle_handshake_init(msg, dst),
@@ -141,6 +156,7 @@ impl Peer {
     fn handle_handshake_init<'a>(&self, msg: HandshakeInit<'a>, dst: &'a mut [u8]) -> Action<'a> {
         let mut state = self.handshake_state.write();
         if let HandshakeState::None = &*state {
+            eprintln!("Handshake init");
             *state = HandshakeState::HandshakeReceived {
                 remote_idx: msg.assigned_idx,
             };
@@ -165,6 +181,7 @@ impl Peer {
     ) -> Action<'a> {
         let mut state = self.handshake_state.write();
         if let HandshakeState::HandshakeSent = &*state {
+            eprintln!("Handshake response");
             *state = HandshakeState::Connected {
                 remote_idx: msg.assigned_idx,
             };
@@ -177,6 +194,7 @@ impl Peer {
         match &*state {
             HandshakeState::Connected { .. } => (),
             HandshakeState::HandshakeReceived { remote_idx } => {
+                eprintln!("Received first packet.");
                 let remote_idx = *remote_idx;
                 drop(state);
 

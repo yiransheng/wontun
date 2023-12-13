@@ -2,7 +2,7 @@
 
 setcap 'cap_net_admin=eip'  ./wontun
 
-./wontun &
+./wontun --conf tun0.conf &
 pid=$!
 
 ip addr add 172.16.0.1/24 dev tun0

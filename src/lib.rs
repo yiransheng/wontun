@@ -171,9 +171,9 @@ impl Device {
     }
 
     fn handle_tun(&self, thread_data: &mut ThreadData) -> io::Result<()> {
-        let buf = &mut thread_data.src_buf[..];
-        while let Ok(nbytes) = self.iface.recv(buf) {
-            let (src, dst) = match etherparse::Ipv4HeaderSlice::from_slice(&buf[..nbytes]) {
+        let src_buf = &mut thread_data.src_buf[..];
+        while let Ok(nbytes) = self.iface.recv(src_buf) {
+            let (src, dst) = match etherparse::Ipv4HeaderSlice::from_slice(&src_buf[..nbytes]) {
                 Ok(iph) => {
                     let src = iph.source_addr();
                     let dst = iph.destination_addr();
@@ -183,17 +183,21 @@ impl Device {
             };
             eprintln!("Got Ipv4 packet of size: {nbytes}, {src} -> {dst}, from tun0");
             let Some(peer) = self.peers_by_ip.get(dst.into()) else {
+                eprintln!("No peer :(");
                 continue;
             };
-
-            let endpoint = peer.endpoint();
-            let _send_result = if let Some(ref conn) = endpoint.conn {
-                conn.send(&buf[..nbytes])
-            } else if let Some(ref addr) = endpoint.addr {
-                self.udp.send_to(&buf[..nbytes], addr)
-            } else {
-                Ok(0)
-            };
+            match peer.encapsulate(&src_buf[..nbytes], &mut thread_data.dst_buf) {
+                Action::WriteToTunn(data, src_addr) => {
+                    eprintln!("To run. {src_addr}, {}", peer.is_allowed_ip(src_addr));
+                    if peer.is_allowed_ip(src_addr) {
+                        let _ = self.iface.send(data);
+                    }
+                }
+                Action::WriteToNetwork(data) => {
+                    let _ = self.send_over_udp(peer, data);
+                }
+                Action::None => (),
+            }
         }
 
         Ok(())
@@ -211,13 +215,21 @@ impl Device {
             let peer = match packet {
                 Packet::Empty => continue,
                 Packet::HandshakeInit(ref msg) => {
+                    eprintln!("Handshake init received {:?}", msg);
                     self.peers_by_name.get(msg.sender_name.as_slice())
                 }
                 Packet::HandshakeResponse(ref msg) => {
+                    eprintln!("Handshake response received {:?}", msg);
                     self.peers_by_index.get(msg.sender_idx as usize)
                 }
-                Packet::Data(ref msg) => self.peers_by_index.get(msg.sender_idx as usize),
+                Packet::Data(ref msg) => {
+                    eprintln!("data recieved");
+                    self.peers_by_index.get(msg.sender_idx as usize)
+                }
             };
+            if peer.is_none() {
+                eprintln!("no peer");
+            }
             let Some(peer) = peer else {
                 continue;
             };
@@ -243,8 +255,9 @@ impl Device {
                 }
             }
 
-            match peer.handle_packet(packet, &mut thread_data.dst_buf) {
+            match peer.handle_incoming_packet(packet, &mut thread_data.dst_buf) {
                 Action::WriteToTunn(data, src_addr) => {
+                    eprintln!("To run. {src_addr}, {}", peer.is_allowed_ip(src_addr));
                     if peer.is_allowed_ip(src_addr) {
                         let _ = self.iface.send(data);
                     }
