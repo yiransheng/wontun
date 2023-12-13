@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{SocketAddr, SocketAddrV4, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 use std::os::fd::{AsRawFd, BorrowedFd};
 use std::sync::Arc;
 use std::{eprintln, io};
@@ -151,6 +151,21 @@ impl Device {
 
         let tun_fd = unsafe { BorrowedFd::borrow_raw(self.iface.as_raw_fd()) };
         self.poll.register_read::<_, SockID>(Token::Tun, &tun_fd)?;
+
+        let mut buf = [0u8; BUF_SIZE];
+        for (_, peer) in self.peers_by_name.iter() {
+            match peer.send_handshake(self.name.as_ref(), &mut buf) {
+                Action::WriteToTunn(data, src_addr) => {
+                    if peer.is_allowed_ip(src_addr) {
+                        let _ = self.iface.send(data);
+                    }
+                }
+                Action::WriteToNetwork(data) => {
+                    let _ = self.send_over_udp(peer, data);
+                }
+                Action::None => (),
+            }
+        }
 
         Ok(())
     }

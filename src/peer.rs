@@ -37,7 +37,7 @@ pub enum Action<'a> {
     None,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 enum HandshakeState {
     None,
     HandshakeSent,
@@ -107,12 +107,26 @@ impl Peer {
         Ok(conn)
     }
 
-    pub fn send_handshake<'a>(&self, peer_name: PeerName<&[u8]>, dst: &'a [u8]) -> Action {
-        let packet = HandshakeInit {
-            sender_name: peer_name,
-            assigned_idx: self.local_idx(),
-        };
-        Action::None
+    pub fn send_handshake<'a>(
+        &self,
+        sender_name: PeerName<&[u8]>,
+        dst: &'a mut [u8],
+    ) -> Action<'a> {
+        let mut state = self.handshake_state.write();
+        let endpoint_set = { self.endpoint().addr.is_some() };
+        if HandshakeState::None == *state && endpoint_set {
+            let packet = HandshakeInit {
+                sender_name,
+                assigned_idx: self.local_idx(),
+            };
+            let n = packet.format(dst);
+
+            *state = HandshakeState::HandshakeSent;
+
+            Action::WriteToNetwork(&dst[..n])
+        } else {
+            Action::None
+        }
     }
 
     pub fn handle_packet<'a>(&self, packet: Packet<'a>, dst: &'a mut [u8]) -> Action<'a> {
@@ -211,5 +225,9 @@ impl PeerName<[u8; 100]> {
             (&mut bytes[..len]).copy_from_slice(name_bytes);
             Ok(PeerName(bytes))
         }
+    }
+
+    pub fn as_ref(&self) -> PeerName<&[u8]> {
+        PeerName(self.0.as_slice())
     }
 }

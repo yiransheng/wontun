@@ -1,9 +1,5 @@
 use clap::Parser;
-use std::{
-    io,
-    net::{SocketAddr, SocketAddrV4},
-    path::PathBuf,
-};
+use std::path::PathBuf;
 use wontun::{Conf, Device, DeviceConfig, Peer, PeerName};
 
 #[derive(Parser)]
@@ -38,6 +34,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         dev.add_peer(peer_name, peer);
     }
+
+    dev.start()?;
+    dev.wait();
 
     Ok(())
 }
