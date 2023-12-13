@@ -229,8 +229,10 @@ impl Device {
             }
 
             match peer.handle_packet(packet, &mut thread_data.dst_buf) {
-                Action::WriteToTunn(data, _src_addr) => {
-                    let _ = self.iface.send(data);
+                Action::WriteToTunn(data, src_addr) => {
+                    if peer.is_allowed_ip(src_addr) {
+                        let _ = self.iface.send(data);
+                    }
                 }
                 Action::WriteToNetwork(data) => {
                     let _ = self.send_over_udp(peer, data);

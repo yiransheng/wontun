@@ -32,7 +32,7 @@ pub struct Endpoint {
 }
 
 pub enum Action<'a> {
-    WriteToTunn(&'a [u8], SocketAddrV4),
+    WriteToTunn(&'a [u8], Ipv4Addr),
     WriteToNetwork(&'a [u8]),
     None,
 }
@@ -61,6 +61,10 @@ impl Peer {
 
     pub fn add_allowed_ip(&mut self, addr: Ipv4Addr, cidr: u8) {
         self.allowed_ips.insert(addr.into(), cidr, ());
+    }
+
+    pub fn is_allowed_ip(&self, addr: Ipv4Addr) -> bool {
+        self.allowed_ips.get(addr.into()).is_some()
     }
 
     pub fn local_idx(&self) -> u32 {
@@ -159,8 +163,13 @@ impl Peer {
             }
             _ => return Action::None,
         };
-
-        Action::WriteToTunn(msg.data, unimplemented!())
+        match etherparse::Ipv4HeaderSlice::from_slice(msg.data) {
+            Ok(iph) => {
+                let src = iph.source_addr();
+                Action::WriteToTunn(msg.data, src)
+            }
+            _ => Action::None,
+        }
     }
 }
 

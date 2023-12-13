@@ -15,6 +15,7 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+    // tun interface name is derived from the file name of config file
     let tun_name = args.conf.file_stem().and_then(|s| s.to_str()).unwrap();
     let conf = std::fs::read_to_string(&args.conf)?;
     let conf = Conf::parse_from(&conf)?;
