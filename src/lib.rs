@@ -27,7 +27,6 @@ pub struct DeviceConfig<'a> {
 pub struct Device {
     udp: Arc<UdpSocket>,
     iface: Iface,
-    peer: Peer,
     poll: Poll,
     peers_by_name: HashMap<PeerName, Arc<Peer>>,
     peers_by_index: Vec<Arc<Peer>>,
@@ -94,25 +93,33 @@ impl Device {
         let use_connected_peer = config.use_connected_peer;
         let listen_port = config.listen_port;
 
-        let peer = Peer::new(Endpoint::default());
-        let udp = if let Some(addr) = config.peer_addr {
-            let _ = peer.set_endpoint(addr);
-            peer.connect_endpoint(listen_port)?
-        } else {
-            Arc::new(new_udp_socket(config.listen_port)?)
-        };
+        let udp = Arc::new(new_udp_socket(config.listen_port)?);
 
         Ok(Self {
             iface,
             udp,
             poll,
-            peer,
             peers_by_name: HashMap::new(),
             peers_by_index: Vec::new(),
             peers_by_ip: AllowedIps::new(),
             use_connected_peer,
             listen_port,
         })
+    }
+
+    pub fn add_peer(&mut self, name: PeerName, mut peer: Peer) {
+        let local_idx = self.peers_by_index.len();
+        peer.set_local_idx(local_idx as u32);
+
+        let peer = Arc::new(peer);
+
+        self.peers_by_name.insert(name, Arc::clone(&peer));
+        self.peers_by_ip.extend(
+            peer.allowed_ips()
+                .iter()
+                .map(|(_, ip, cidr)| (ip, cidr, Arc::clone(&peer))),
+        );
+        self.peers_by_index.push(peer);
     }
 
     pub fn wait(&self) {
@@ -155,23 +162,6 @@ impl Device {
 
         let tun_fd = unsafe { BorrowedFd::borrow_raw(self.iface.as_raw_fd()) };
         self.poll.register_read::<_, SockID>(Token::Tun, &tun_fd)?;
-
-        self.initiate_handshake()
-    }
-
-    fn initiate_handshake(&self) -> io::Result<()> {
-        let msg = b"hello?";
-
-        let endpoint = self.peer.endpoint();
-        if let Some(ref conn) = endpoint.conn {
-            eprintln!("initiating handshake..");
-
-            conn.send(msg)?;
-        } else if let Some(ref addr) = endpoint.addr {
-            eprintln!("initiating handshake..");
-
-            self.udp.send_to(msg, addr)?;
-        };
 
         Ok(())
     }
@@ -234,7 +224,7 @@ impl Device {
                 drop(conn);
             }
             if endpoint_changed && self.use_connected_peer {
-                match self.peer.connect_endpoint(self.listen_port) {
+                match peer.connect_endpoint(self.listen_port) {
                     Ok(conn) => {
                         self.poll
                             .register_read(

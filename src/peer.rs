@@ -1,10 +1,11 @@
-use std::net::{SocketAddrV4, UdpSocket};
+use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 
 use std::io;
 use std::sync::Arc;
 
 use parking_lot::{RwLock, RwLockReadGuard};
 
+use crate::allowed_ip::AllowedIps;
 use crate::new_udp_socket;
 use crate::packet::{HandshakeInit, HandshakeResponse, Packet, PacketData};
 
@@ -15,6 +16,13 @@ pub struct Peer {
     local_idx: u32,
     handshake_state: RwLock<HandshakeState>,
     endpoint: RwLock<Endpoint>,
+    allowed_ips: AllowedIps<()>,
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub struct AllowedIp {
+    pub ip: Ipv4Addr,
+    pub cidr: u8,
 }
 
 #[derive(Default)]
@@ -43,11 +51,20 @@ impl Peer {
             local_idx: 0,
             handshake_state: RwLock::new(HandshakeState::None),
             endpoint: RwLock::new(endpoint),
+            allowed_ips: AllowedIps::new(),
         }
+    }
+
+    pub fn allowed_ips(&self) -> &AllowedIps<()> {
+        &self.allowed_ips
     }
 
     pub fn local_idx(&self) -> u32 {
         self.local_idx
+    }
+
+    pub fn set_local_idx(&mut self, idx: u32) {
+        self.local_idx = idx;
     }
 
     pub fn endpoint(&self) -> RwLockReadGuard<Endpoint> {

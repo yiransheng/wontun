@@ -1,9 +1,8 @@
+use std::collections::VecDeque;
+use std::net::IpAddr;
+
 use ip_network::IpNetwork;
 use ip_network_table::IpNetworkTable;
-
-use std::collections::VecDeque;
-use std::iter::FromIterator;
-use std::net::IpAddr;
 
 /// A trie of IP/cidr addresses
 #[derive(Default)]
@@ -22,9 +21,9 @@ impl<D> AllowedIps<D> {
         self.ips = IpNetworkTable::new();
     }
 
-    pub fn insert(&mut self, key: IpAddr, cidr: u32, data: D) -> Option<D> {
+    pub fn insert(&mut self, key: IpAddr, cidr: u8, data: D) -> Option<D> {
         self.ips.insert(
-            IpNetwork::new_truncate(key, cidr as u8).expect("cidr is valid length"),
+            IpNetwork::new_truncate(key, cidr).expect("cidr is valid length"),
             data,
         )
     }
@@ -53,5 +52,13 @@ impl<'a, D> Iterator for Iter<'a, D> {
     type Item = (&'a D, IpAddr, u8);
     fn next(&mut self) -> Option<Self::Item> {
         self.0.pop_front()
+    }
+}
+
+impl<T> Extend<(IpAddr, u8, T)> for AllowedIps<T> {
+    fn extend<I: IntoIterator<Item = (IpAddr, u8, T)>>(&mut self, iter: I) {
+        for (ip, cidr, value) in iter {
+            self.insert(ip, cidr, value);
+        }
     }
 }
