@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
 use std::str::FromStr;
 
 use serde::Deserialize;
@@ -14,10 +14,13 @@ pub enum ConfError {
 
     #[error("multiple interface definition")]
     ExtraInterface,
+
+    #[error("missing interface definition")]
+    MissingInterface,
 }
 
 pub struct Conf {
-    pub interface: Option<InterfaceConf>,
+    pub interface: InterfaceConf,
     pub peers: Vec<PeerConf>,
 }
 
@@ -30,7 +33,7 @@ pub struct InterfaceConf {
 
 pub struct PeerConf {
     pub name: String,
-    pub endpoint: Option<IpAddr>,
+    pub endpoint: Option<SocketAddrV4>,
     pub allowed_ips: Vec<(Ipv4Addr, u8)>,
 }
 
@@ -61,7 +64,7 @@ impl Conf {
                             Some((ipn.network_address(), ipn.netmask()))
                         })
                         .collect();
-                    let endpoint = Endpoint.and_then(|ep| IpAddr::from_str(&ep).ok());
+                    let endpoint = Endpoint.and_then(|ep| SocketAddrV4::from_str(&ep).ok());
                     let peer = PeerConf {
                         name: Name,
                         allowed_ips,
@@ -92,8 +95,11 @@ impl Conf {
                 }
             }
         }
-
-        Ok(Conf { interface, peers })
+        if let Some(interface) = interface {
+            Ok(Conf { interface, peers })
+        } else {
+            Err(ConfError::MissingInterface)
+        }
     }
 }
 

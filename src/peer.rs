@@ -46,17 +46,21 @@ enum HandshakeState {
 }
 
 impl Peer {
-    pub fn new(endpoint: Endpoint) -> Self {
+    pub fn new() -> Self {
         Self {
             local_idx: 0,
             handshake_state: RwLock::new(HandshakeState::None),
-            endpoint: RwLock::new(endpoint),
+            endpoint: RwLock::new(Endpoint::default()),
             allowed_ips: AllowedIps::new(),
         }
     }
 
     pub fn allowed_ips(&self) -> &AllowedIps<()> {
         &self.allowed_ips
+    }
+
+    pub fn add_allowed_ip(&mut self, addr: Ipv4Addr, cidr: u8) {
+        self.allowed_ips.insert(addr.into(), cidr, ());
     }
 
     pub fn local_idx(&self) -> u32 {

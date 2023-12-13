@@ -15,17 +15,20 @@ mod packet;
 mod peer;
 mod poll;
 
-use peer::{Action, Endpoint, Peer, PeerName};
+pub use conf::Conf;
+pub use peer::{Action, Endpoint, Peer, PeerName};
+
 use poll::{Poll, Token};
 
 pub struct DeviceConfig<'a> {
-    use_connected_peer: bool,
-    listen_port: u16,
-    tun_name: &'a str,
-    peer_addr: Option<SocketAddrV4>,
+    pub name: PeerName,
+    pub use_connected_peer: bool,
+    pub listen_port: u16,
+    pub tun_name: &'a str,
 }
 
 pub struct Device {
+    name: PeerName,
     udp: Arc<UdpSocket>,
     iface: Iface,
     poll: Poll,
@@ -69,22 +72,6 @@ struct ThreadData {
     dst_buf: [u8; BUF_SIZE],
 }
 
-impl<'a> DeviceConfig<'a> {
-    pub fn new(
-        use_connected_peer: bool,
-        listen_port: u16,
-        tun_name: &'a str,
-        peer_addr: Option<SocketAddrV4>,
-    ) -> Self {
-        Self {
-            use_connected_peer,
-            listen_port,
-            tun_name,
-            peer_addr,
-        }
-    }
-}
-
 impl Device {
     pub fn new(config: DeviceConfig) -> io::Result<Self> {
         let iface = tun_tap::Iface::without_packet_info(config.tun_name, tun_tap::Mode::Tun)?;
@@ -97,6 +84,7 @@ impl Device {
         let udp = Arc::new(new_udp_socket(config.listen_port)?);
 
         Ok(Self {
+            name: config.name,
             iface,
             udp,
             poll,
