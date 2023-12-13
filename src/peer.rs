@@ -240,7 +240,7 @@ impl PeerName<[u8; 100]> {
         if len > 100 {
             Err(name)
         } else {
-            (&mut bytes[..len]).copy_from_slice(name_bytes);
+            bytes[..len].copy_from_slice(name_bytes);
             Ok(PeerName(bytes))
         }
     }

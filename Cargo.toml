@@ -15,7 +15,12 @@ ip_network_table = "0.2.0"
 serde = { version = "1.0.0", features = ["derive"] }
 serde_ini = { git = "https://github.com/arcnmx/serde-ini.git", rev = "eb9d637" }
 thiserror = "1.0.50"
+serde_json = "1.0.108"
 
 [[bin]]
 name = "wontun"
 path = "src/wontun.rs"
+
+[[bin]]
+name = "wontun-conf"
+path = "src/wontun-conf.rs"

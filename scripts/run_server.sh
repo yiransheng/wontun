@@ -1,11 +1,13 @@
 #!/bin/bash
+#
+IP=$(./wontun-conf --conf tun0.conf | jq -r '"\(.interface.address[0])/\(.interface.address[1])"')
 
 setcap 'cap_net_admin=eip'  ./wontun
 
 ./wontun --conf tun0.conf &
 pid=$!
 
-ip addr add 172.16.0.1/24 dev tun0
+ip addr add $IP dev tun0
 ip link set up dev tun0
 ip link set dev tun0 mtu 1400
 

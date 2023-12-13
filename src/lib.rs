@@ -203,7 +203,7 @@ impl Device {
         Ok(())
     }
 
-    fn handle_udp<'a>(&self, sock: &UdpSocket, thread_data: &'a mut ThreadData) -> io::Result<()> {
+    fn handle_udp(&self, sock: &UdpSocket, thread_data: &mut ThreadData) -> io::Result<()> {
         let src = &mut thread_data.src_buf[..];
         while let Ok((nbytes, peer_addr)) = sock.recv_from(&mut src[..]) {
             let SocketAddr::V4(peer_addr) = peer_addr else {

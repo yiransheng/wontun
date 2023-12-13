@@ -1,7 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::str::FromStr;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -10,7 +10,7 @@ pub enum ConfError {
     Ini(#[from] serde_ini::de::Error),
 
     #[error("invalid ip address: {0}")]
-    IpFormat(#[from] ip_network::IpNetworkParseError),
+    IpFormat(String),
 
     #[error("multiple interface definition")]
     ExtraInterface,
@@ -19,18 +19,20 @@ pub enum ConfError {
     MissingInterface,
 }
 
+#[derive(Debug, Serialize)]
 pub struct Conf {
     pub interface: InterfaceConf,
     pub peers: Vec<PeerConf>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct InterfaceConf {
     pub name: String,
-    pub address: Option<(Ipv4Addr, u8)>,
+    pub address: (Ipv4Addr, u8),
     pub listen_port: u16,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PeerConf {
     pub name: String,
     pub endpoint: Option<SocketAddrV4>,
@@ -56,7 +58,7 @@ impl Conf {
                     let allowed_ips: Vec<_> = AllowedIPs
                         .as_deref()
                         .unwrap_or("")
-                        .split(",")
+                        .split(',')
                         .map(|allowed_ip| allowed_ip.trim())
                         .filter_map(|allowed_ip| {
                             let ipn =
@@ -78,12 +80,7 @@ impl Conf {
                     ListenPort,
                 } => {
                     if interface.is_none() {
-                        let address = if let Some(ref address) = Address {
-                            let ipn = ip_network::Ipv4Network::from_str(address)?;
-                            Some((ipn.network_address(), ipn.netmask()))
-                        } else {
-                            None
-                        };
+                        let address = parse_cidr(Address.trim())?;
                         interface = Some(InterfaceConf {
                             name: Name,
                             address,
@@ -103,12 +100,34 @@ impl Conf {
     }
 }
 
+fn parse_cidr(cidr: &str) -> Result<(Ipv4Addr, u8), ConfError> {
+    let (ip_str, subnet_str) = cidr
+        .split_once('/')
+        .ok_or_else(|| ConfError::IpFormat("Invalid CIDR format".to_string()))?;
+
+    let ip = ip_str
+        .parse::<Ipv4Addr>()
+        .map_err(|_| ConfError::IpFormat("Invalid IP address".to_string()))?;
+
+    let subnet = subnet_str
+        .parse::<u8>()
+        .map_err(|_| ConfError::IpFormat("Invalid subnet mask".to_string()))?;
+
+    if subnet > 32 {
+        return Err(ConfError::IpFormat(
+            "Subnet mask must be in the range 0-32".to_string(),
+        ));
+    }
+
+    Ok((ip, subnet))
+}
+
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[allow(non_snake_case)]
 pub enum Section {
     Interface {
         Name: String,
-        Address: Option<String>,
+        Address: String,
         ListenPort: Option<u16>,
     },
     Peer {
@@ -127,7 +146,7 @@ mod tests {
         let input = r#"
 [Interface]
 Name=client
-Address=192.0.2.2/32
+Address=192.0.2.2/24
 ListenPort=19988
 
 [Peer]
@@ -143,7 +162,7 @@ AllowedIPs=192.0.2.1/24
             vec![
                 Section::Interface {
                     Name: "client".into(),
-                    Address: Some("192.0.2.2/32".into()),
+                    Address: "192.0.2.2/32".into(),
                     ListenPort: Some(19988)
                 },
                 Section::Peer {
