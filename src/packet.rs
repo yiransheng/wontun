@@ -27,7 +27,7 @@ const HANDSHAKE_RESPONSE: u8 = 2;
 const PACKET_DATA: u8 = 3;
 
 const HANDSHAKE_INIT_SIZE: usize = 105;
-const HANDSHAKE_RESPONSE_SIZE: usize = 2;
+const HANDSHAKE_RESPONSE_SIZE: usize = 9;
 
 #[derive(Debug, Copy, Clone)]
 pub enum PackeParseError {
@@ -49,19 +49,62 @@ impl<'a> Packet<'a> {
                     assigned_idx: remote_idx,
                 }))
             }
-            (HANDSHAKE_RESPONSE, HANDSHAKE_RESPONSE_SIZE) => unimplemented!(),
-            (PACKET_DATA, _) => unimplemented!(),
+            (HANDSHAKE_RESPONSE, HANDSHAKE_RESPONSE_SIZE) => {
+                let assigned_idx = u32::from_le_bytes(src[1..5].try_into().unwrap());
+                let sender_idx = u32::from_le_bytes(src[5..9].try_into().unwrap());
+
+                Ok(Packet::HandshakeResponse(HandshakeResponse {
+                    assigned_idx,
+                    sender_idx,
+                }))
+            }
+            (PACKET_DATA, _) => {
+                let sender_idx = u32::from_le_bytes(src[1..5].try_into().unwrap());
+
+                Ok(Packet::Data(PacketData {
+                    sender_idx,
+                    data: &src[5..],
+                }))
+            }
             _ => Err(PackeParseError::ProtocolErr),
         }
     }
+}
 
+impl<'a> HandshakeInit<'a> {
     pub fn format(&self, dst: &mut [u8]) -> usize {
-        0
+        assert!(dst.len() >= HANDSHAKE_INIT_SIZE);
+
+        dst[0] = HANDSHAKE_INIT;
+        dst[1..5].copy_from_slice(&self.assigned_idx.to_le_bytes());
+        dst[5..105].copy_from_slice(self.sender_name.as_slice());
+
+        HANDSHAKE_INIT_SIZE
     }
 }
 
-impl<'a> From<HandshakeResponse> for Packet<'a> {
-    fn from(value: HandshakeResponse) -> Self {
-        Packet::HandshakeResponse(value)
+impl HandshakeResponse {
+    pub fn format(&self, dst: &mut [u8]) -> usize {
+        assert!(dst.len() >= HANDSHAKE_RESPONSE_SIZE);
+
+        dst[0] = HANDSHAKE_RESPONSE;
+        dst[1..5].copy_from_slice(&self.assigned_idx.to_le_bytes());
+        dst[5..9].copy_from_slice(&self.sender_idx.to_le_bytes());
+
+        HANDSHAKE_RESPONSE_SIZE
+    }
+}
+
+impl<'a> PacketData<'a> {
+    pub fn format(&self, dst: &mut [u8]) -> usize {
+        let n = self.data.len();
+        let len = n + 5;
+        assert!(dst.len() >= len);
+
+        dst[0] = PACKET_DATA;
+        dst[1..5].copy_from_slice(&self.sender_idx.to_le_bytes());
+        dst[5..(5 + n)].copy_from_slice(self.data);
+
+        len
     }
 }

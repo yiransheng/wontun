@@ -107,6 +107,14 @@ impl Peer {
         Ok(conn)
     }
 
+    pub fn send_handshake<'a>(&self, peer_name: PeerName<&[u8]>, dst: &'a [u8]) -> Action {
+        let packet = HandshakeInit {
+            sender_name: peer_name,
+            assigned_idx: self.local_idx(),
+        };
+        Action::None
+    }
+
     pub fn handle_packet<'a>(&self, packet: Packet<'a>, dst: &'a mut [u8]) -> Action<'a> {
         match packet {
             Packet::Empty => Action::None,
@@ -129,7 +137,7 @@ impl Peer {
                 assigned_idx: local_idx,
                 sender_idx: msg.assigned_idx,
             };
-            let n = Packet::from(response).format(dst);
+            let n = response.format(dst);
             Action::WriteToNetwork(&dst[..n])
         } else {
             Action::None
