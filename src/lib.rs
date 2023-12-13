@@ -263,7 +263,7 @@ impl Device {
                     }
                 }
                 Action::WriteToNetwork(data) => {
-                    eprintln!("To network.. {:?}", data);
+                    eprintln!("to network.. {:?}", data);
                     let _ = self.send_over_udp(peer, data);
                 }
                 Action::None => (),

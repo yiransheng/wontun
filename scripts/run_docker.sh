@@ -1,5 +1,9 @@
 #!/bin/bash
-#
+
+set -x
+
+cp "$WONTUN_CONF" tun0.conf
+
 IP=$(./wontun-conf --conf tun0.conf | jq -r '"\(.interface.address[0])/\(.interface.address[1])"')
 
 setcap 'cap_net_admin=eip'  ./wontun

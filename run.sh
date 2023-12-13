@@ -3,7 +3,7 @@
 cargo b --release
 ext=$?
 if [[ $ext -ne 0 ]]; then
-	exit $ext
+    exit $ext
 fi
 
 cleanup() {
@@ -12,36 +12,46 @@ cleanup() {
     exit 0
 }
 
-# Check if an argument is provided
-if [ $# -eq 0 ]; then
-    echo "Usage: $0 <client|server>"
+# Check if at least one argument is provided
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 host | docker <conf>"
     exit 1
 fi
 
-# Run based on the provided argument
+# Handle the first argument
 case "$1" in
-    client)
-        echo "run client"
-        ./scripts/run_client.sh
+    host)
+        # Execute the host script
+        ./scripts/run_host.sh
         ;;
-    server)
-        make wontun-remote-docker
+    docker)
+        # Check if the 'conf' argument is provided
+        if [ $# -eq 2 ]; then
+            make wontun-remote-docker
 
-        # Set trap for INT and TERM signals
-        trap cleanup INT TERM
+            # Set trap for INT and TERM signals
+            trap cleanup INT TERM
 
-        echo "run server"
-        # Run the Docker container in the background
-        docker run --name wontun-remote \
-          --rm --network=wontun-test --cap-add=NET_ADMIN \
-          --device=/dev/net/tun wontun-remote:latest &
+            echo "run docker"
+            # Run the Docker container in the background
+            docker run --name wontun-remote \
+                --env WONTUN_CONF=$2 \
+                --rm \
+                --network=wontun-test \
+                --cap-add=NET_ADMIN \
+                --device=/dev/net/tun \
+                wontun-remote:latest &
 
-        # Wait for the Docker container process to exit
-        wait $!
+            # Wait for the Docker container process to exit
+            wait $!
+        else
+            echo "Error: 'conf' argument is required for docker"
+            exit 1
+        fi
         ;;
     *)
         echo "Invalid argument: $1"
-        echo "Usage: $0 <client|server>"
+        echo "Usage: $0 host | docker <conf>"
         exit 1
         ;;
 esac
