@@ -183,7 +183,7 @@ impl Device {
             };
             eprintln!("Got Ipv4 packet of size: {nbytes}, {src} -> {dst}, from tun0");
             let Some(peer) = self.peers_by_ip.get(dst.into()) else {
-                eprintln!("No peer :(");
+                eprintln!("  no peer.");
                 continue;
             };
             match peer.encapsulate(&src_buf[..nbytes], &mut thread_data.dst_buf) {
@@ -257,12 +257,13 @@ impl Device {
 
             match peer.handle_incoming_packet(packet, &mut thread_data.dst_buf) {
                 Action::WriteToTunn(data, src_addr) => {
-                    eprintln!("To run. {src_addr}, {}", peer.is_allowed_ip(src_addr));
                     if peer.is_allowed_ip(src_addr) {
+                        eprintln!("to tun..");
                         let _ = self.iface.send(data);
                     }
                 }
                 Action::WriteToNetwork(data) => {
+                    eprintln!("To network.. {:?}", data);
                     let _ = self.send_over_udp(peer, data);
                 }
                 Action::None => (),

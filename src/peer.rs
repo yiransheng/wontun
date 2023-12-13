@@ -156,7 +156,7 @@ impl Peer {
     fn handle_handshake_init<'a>(&self, msg: HandshakeInit<'a>, dst: &'a mut [u8]) -> Action<'a> {
         let mut state = self.handshake_state.write();
         if let HandshakeState::None = &*state {
-            eprintln!("Handshake init");
+            eprintln!("  handle handshake init");
             *state = HandshakeState::HandshakeReceived {
                 remote_idx: msg.assigned_idx,
             };
@@ -177,16 +177,20 @@ impl Peer {
     fn handle_handshake_response<'a>(
         &self,
         msg: HandshakeResponse,
-        _dst: &'a mut [u8],
+        dst: &'a mut [u8],
     ) -> Action<'a> {
         let mut state = self.handshake_state.write();
         if let HandshakeState::HandshakeSent = &*state {
-            eprintln!("Handshake response");
+            eprintln!("  handle handshake response");
             *state = HandshakeState::Connected {
                 remote_idx: msg.assigned_idx,
             };
+            drop(state);
+
+            self.encapsulate(&[], dst)
+        } else {
+            Action::None
         }
-        Action::None
     }
 
     fn handle_packet_data<'a>(&self, msg: PacketData<'a>, _dst: &'a mut [u8]) -> Action<'a> {
@@ -194,7 +198,7 @@ impl Peer {
         match &*state {
             HandshakeState::Connected { .. } => (),
             HandshakeState::HandshakeReceived { remote_idx } => {
-                eprintln!("Received first packet.");
+                eprintln!("..received first data packet");
                 let remote_idx = *remote_idx;
                 drop(state);
 

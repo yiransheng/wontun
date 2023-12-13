@@ -32,7 +32,7 @@ const PACKET_DATA: u8 = 3;
 
 const HANDSHAKE_INIT_SIZE: usize = 105;
 const HANDSHAKE_RESPONSE_SIZE: usize = 9;
-const DATA_MIN_SIZE: usize = 9;
+const DATA_MIN_SIZE: usize = 5;
 
 #[derive(Debug, Copy, Clone)]
 pub enum PackeParseError {

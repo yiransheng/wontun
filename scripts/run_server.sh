@@ -11,10 +11,6 @@ ip addr add $IP dev tun0
 ip link set up dev tun0
 ip link set dev tun0 mtu 1400
 
-nc -l 172.16.0.1 8080 &
-ncpid=$!
-
 trap "kill $pid $ncpid" INT TERM
 
 wait $pid
-wait $ncpid
