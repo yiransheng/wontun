@@ -10,6 +10,7 @@ use socket2::{Domain, Protocol, Socket, Type};
 use tun_tap::Iface;
 
 mod allowed_ip;
+mod conf;
 mod packet;
 mod peer;
 mod poll;
