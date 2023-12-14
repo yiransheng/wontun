@@ -162,7 +162,7 @@ AllowedIPs=192.0.2.1/24
             vec![
                 Section::Interface {
                     Name: "client".into(),
-                    Address: "192.0.2.2/32".into(),
+                    Address: "192.0.2.2/24".into(),
                     ListenPort: Some(19988)
                 },
                 Section::Peer {
