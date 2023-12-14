@@ -126,7 +126,7 @@ impl Device {
                         continue;
                     };
                     if let Some(conn) = peer.endpoint().conn.as_deref() {
-                        if let Err(err) = self.handle_udp(conn, &mut t) {
+                        if let Err(err) = self.handle_connected_peer(conn, peer, &mut t) {
                             eprintln!("udp error: {:?}", err);
                         }
                     }
@@ -246,6 +246,36 @@ impl Device {
                     }
                 }
             }
+
+            match peer.handle_incoming_packet(packet, &mut thread_data.dst_buf) {
+                Action::WriteToTunn(data, src_addr) => {
+                    if peer.is_allowed_ip(src_addr) {
+                        eprintln!("to tun..");
+                        let _ = self.iface.send(data);
+                    }
+                }
+                Action::WriteToNetwork(data) => {
+                    eprintln!("to network.. {:?}", data);
+                    let _ = self.send_over_udp(peer, data);
+                }
+                Action::None => (),
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_connected_peer(
+        &self,
+        sock: &UdpSocket,
+        peer: &Peer,
+        thread_data: &mut ThreadData,
+    ) -> io::Result<()> {
+        let src_buf = &mut thread_data.src_buf[..];
+        while let Ok(nbytes) = sock.recv(&mut src_buf[..]) {
+            let Ok(packet) = Packet::parse_from(&src_buf[..nbytes]) else {
+                continue;
+            };
 
             match peer.handle_incoming_packet(packet, &mut thread_data.dst_buf) {
                 Action::WriteToTunn(data, src_addr) => {
