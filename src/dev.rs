@@ -196,12 +196,12 @@ impl Device {
     }
 
     fn handle_udp(&self, sock: &UdpSocket, thread_data: &mut ThreadData) -> io::Result<()> {
-        let src = &mut thread_data.src_buf[..];
-        while let Ok((nbytes, peer_addr)) = sock.recv_from(&mut src[..]) {
+        let src_buf = &mut thread_data.src_buf[..];
+        while let Ok((nbytes, peer_addr)) = sock.recv_from(&mut src_buf[..]) {
             let SocketAddr::V4(peer_addr) = peer_addr else {
                 continue;
             };
-            let Ok(packet) = Packet::parse_from(&src[..nbytes]) else {
+            let Ok(packet) = Packet::parse_from(&src_buf[..nbytes]) else {
                 continue;
             };
             let peer = match packet {
