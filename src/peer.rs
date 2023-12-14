@@ -6,7 +6,6 @@ use std::sync::Arc;
 use parking_lot::{RwLock, RwLockReadGuard};
 
 use crate::allowed_ip::AllowedIps;
-use crate::new_udp_socket;
 use crate::packet::{HandshakeInit, HandshakeResponse, Packet, PacketData};
 
 #[derive(Debug, Hash, Eq, PartialEq)]
@@ -98,7 +97,7 @@ impl Peer {
 
         assert!(endpoint.conn.is_none());
 
-        let conn = new_udp_socket(port)?;
+        let conn = crate::udp::new_socket(port)?;
         conn.connect(addr)?;
         let conn = Arc::new(conn);
 
