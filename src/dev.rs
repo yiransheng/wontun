@@ -4,11 +4,9 @@ use std::os::fd::{AsRawFd, BorrowedFd};
 use std::sync::Arc;
 use std::{eprintln, io};
 
-
 use tun_tap::Iface;
 
 use crate::allowed_ip::AllowedIps;
-
 use crate::packet::Packet;
 use crate::peer::{Action, Peer, PeerName};
 use crate::poll::{Poll, Token};
