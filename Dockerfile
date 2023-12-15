@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 RUN apt update
 
-RUN apt install -y iproute2 libcap2-bin netcat jq
+RUN apt install -y iproute2 libcap2-bin netcat jq termshark
 
 COPY target/release/wontun /wontun 
 COPY target/release/wontun-conf /wontun-conf

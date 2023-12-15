@@ -1,11 +1,5 @@
 #!/bin/bash
 
-cargo b --release
-ext=$?
-if [[ $ext -ne 0 ]]; then
-    exit $ext
-fi
-
 cleanup() {
     echo "Signal caught, killing the Docker container..."
     docker kill "wontun-remote-$1"

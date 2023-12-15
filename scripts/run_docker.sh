@@ -17,6 +17,7 @@ ip link set dev tun0 mtu 1400
 
 if [[ "$WONTUN_CONF" == "server.conf" ]]; then
     iptables -A FORWARD -i tun0 -j ACCEPT
+    # iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
 fi
 
 trap "kill $pid $ncpid" INT TERM

@@ -98,13 +98,13 @@ impl Peer {
         (true, endpoint.conn.take())
     }
 
-    pub fn connect_endpoint(&self, port: u16) -> io::Result<Arc<UdpSocket>> {
+    pub fn connect_endpoint(&self, port: u16, fwmark: Option<u32>) -> io::Result<Arc<UdpSocket>> {
         let mut endpoint = self.endpoint.write();
         let addr = endpoint.addr.unwrap();
 
         assert!(endpoint.conn.is_none());
 
-        let conn = crate::udp::new_socket(port)?;
+        let conn = crate::udp::new_socket(port, fwmark)?;
         conn.connect(addr)?;
         let conn = Arc::new(conn);
 

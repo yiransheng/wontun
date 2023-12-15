@@ -17,6 +17,7 @@ pub struct DeviceConfig<'a> {
     pub use_connected_peer: bool,
     pub listen_port: u16,
     pub tun_name: &'a str,
+    pub fwmark: Option<u32>,
 }
 
 pub struct Device {
@@ -30,6 +31,7 @@ pub struct Device {
 
     use_connected_peer: bool,
     listen_port: u16,
+    fwmark: Option<u32>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -73,7 +75,7 @@ impl Device {
         let use_connected_peer = config.use_connected_peer;
         let listen_port = config.listen_port;
 
-        let udp = Arc::new(udp::new_socket(config.listen_port)?);
+        let udp = Arc::new(udp::new_socket(config.listen_port, config.fwmark)?);
 
         Ok(Self {
             name: config.name,
@@ -85,6 +87,7 @@ impl Device {
             peers_by_ip: AllowedIps::new(),
             use_connected_peer,
             listen_port,
+            fwmark: config.fwmark,
         })
     }
 
@@ -225,7 +228,7 @@ impl Device {
                 drop(conn);
             }
             if endpoint_changed && self.use_connected_peer {
-                match peer.connect_endpoint(self.listen_port) {
+                match peer.connect_endpoint(self.listen_port, self.fwmark) {
                     Ok(conn) => {
                         self.poll
                             .register_read(

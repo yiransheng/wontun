@@ -15,6 +15,9 @@ struct Args {
 
     #[arg(long)]
     log_level: Option<Level>,
+
+    #[arg(long)]
+    fwmark: Option<u32>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -38,6 +41,7 @@ fn main() -> anyhow::Result<()> {
         tun_name,
         use_connected_peer: true,
         listen_port: conf.interface.listen_port,
+        fwmark: args.fwmark.or(Some(19988)),
     })
     .with_context(|| "cannot create a Device")?;
 
