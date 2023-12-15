@@ -8,7 +8,7 @@ fi
 
 cleanup() {
     echo "Signal caught, killing the Docker container..."
-    docker kill wontun-remote
+    docker kill "wontun-remote-$1"
     exit 0
 }
 
@@ -29,17 +29,23 @@ case "$1" in
         if [ $# -eq 2 ]; then
             make wontun-remote-docker
 
+            CONF=$2
+
             # Set trap for INT and TERM signals
-            trap cleanup INT TERM
+            trap 'cleanup $CONF' INT TERM
 
             echo "run docker"
             # Run the Docker container in the background
-            docker run --name wontun-remote \
-                --env WONTUN_CONF=$2 \
+            docker run \
+                --name "wontun-remote-$CONF" \
+                --env WONTUN_CONF=$CONF \
                 --rm \
                 --network=wontun-test \
                 --cap-add=NET_ADMIN \
+                --cap-add=SYS_MODULE \
                 --device=/dev/net/tun \
+                --sysctl="net.ipv4.conf.all.src_valid_mark=1" \
+                --sysctl="net.ipv4.ip_forward=1" \
                 wontun-remote:latest &
 
             # Wait for the Docker container process to exit

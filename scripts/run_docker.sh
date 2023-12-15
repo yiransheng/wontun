@@ -15,6 +15,10 @@ ip addr add $IP dev tun0
 ip link set up dev tun0
 ip link set dev tun0 mtu 1400
 
+if [[ "$WONTUN_CONF" == "server.conf" ]]; then
+    iptables -A FORWARD -i tun0 -j ACCEPT
+fi
+
 trap "kill $pid $ncpid" INT TERM
 
 wait $pid
