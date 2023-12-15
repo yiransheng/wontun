@@ -147,17 +147,7 @@ impl Device {
 
         let mut buf = [0u8; BUF_SIZE];
         for (_, peer) in self.peers_by_name.iter() {
-            match peer.send_handshake(self.name.as_ref(), &mut buf) {
-                Action::WriteToTunn(data, src_addr) => {
-                    if peer.is_allowed_ip(src_addr) {
-                        let _ = self.iface.send(data);
-                    }
-                }
-                Action::WriteToNetwork(data) => {
-                    let _ = self.send_over_udp(peer, data);
-                }
-                Action::None => (),
-            }
+            self.take_action(peer, peer.send_handshake(self.name.as_ref(), &mut buf));
         }
 
         Ok(())
@@ -180,17 +170,8 @@ impl Device {
                 tracing::debug!("no peer for this ip: {dst}");
                 continue;
             };
-            match peer.encapsulate(&src_buf[..nbytes], &mut thread_data.dst_buf) {
-                Action::WriteToTunn(data, src_addr) => {
-                    if peer.is_allowed_ip(src_addr) {
-                        let _ = self.iface.send(data);
-                    }
-                }
-                Action::WriteToNetwork(data) => {
-                    let _ = self.send_over_udp(peer, data);
-                }
-                Action::None => (),
-            }
+            let action = peer.encapsulate(&src_buf[..nbytes], &mut thread_data.dst_buf);
+            self.take_action(peer, action);
         }
 
         Ok(())
@@ -215,10 +196,8 @@ impl Device {
                 }
                 Packet::Data(ref msg) => self.peers_by_index.get(msg.sender_idx as usize),
             };
-            if peer.is_none() {
-                tracing::trace!("no peer found for incoming packet");
-            }
             let Some(peer) = peer else {
+                tracing::debug!("no peer found for incoming packet");
                 continue;
             };
 
@@ -238,22 +217,13 @@ impl Device {
                             .expect("epoll add");
                     }
                     Err(err) => {
-                        tracing::debug!("error connecting to peer: {:?}", err);
+                        tracing::error!("error connecting to peer: {:?}", err);
                     }
                 }
             }
 
-            match peer.handle_incoming_packet(packet, &mut thread_data.dst_buf) {
-                Action::WriteToTunn(data, src_addr) => {
-                    if peer.is_allowed_ip(src_addr) {
-                        let _ = self.iface.send(data);
-                    }
-                }
-                Action::WriteToNetwork(data) => {
-                    let _ = self.send_over_udp(peer, data);
-                }
-                Action::None => (),
-            }
+            let action = peer.handle_incoming_packet(packet, &mut thread_data.dst_buf);
+            self.take_action(peer, action);
         }
 
         Ok(())
@@ -271,20 +241,25 @@ impl Device {
                 continue;
             };
 
-            match peer.handle_incoming_packet(packet, &mut thread_data.dst_buf) {
-                Action::WriteToTunn(data, src_addr) => {
-                    if peer.is_allowed_ip(src_addr) {
-                        let _ = self.iface.send(data);
-                    }
-                }
-                Action::WriteToNetwork(data) => {
-                    let _ = self.send_over_udp(peer, data);
-                }
-                Action::None => (),
-            }
+            let action = peer.handle_incoming_packet(packet, &mut thread_data.dst_buf);
+            self.take_action(peer, action);
         }
 
         Ok(())
+    }
+
+    fn take_action<'a>(&self, peer: &Peer, action: Action<'a>) {
+        match action {
+            Action::WriteToTunn(data, src_addr) => {
+                if peer.is_allowed_ip(src_addr) {
+                    let _ = self.iface.send(data);
+                }
+            }
+            Action::WriteToNetwork(data) => {
+                let _ = self.send_over_udp(peer, data);
+            }
+            Action::None => (),
+        }
     }
 
     fn send_over_udp(&self, peer: &Peer, data: &[u8]) -> io::Result<usize> {

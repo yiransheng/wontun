@@ -1,5 +1,11 @@
 #!/bin/bash
 
+cargo b --release
+ext=$?
+if [[ $ext -ne 0 ]]; then
+    exit $ext
+fi
+
 cleanup() {
     echo "Signal caught, killing the Docker container..."
     docker kill "wontun-remote-$1"
@@ -16,7 +22,7 @@ fi
 case "$1" in
     host)
         # Execute the host script
-        ./scripts/run_host.sh
+        sudo ./scripts/run_host.sh
         ;;
     docker)
         # Check if the 'conf' argument is provided

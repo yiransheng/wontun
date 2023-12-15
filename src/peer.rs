@@ -10,19 +10,13 @@ use crate::allowed_ip::AllowedIps;
 use crate::packet::{HandshakeInit, HandshakeResponse, Packet, PacketData};
 
 #[derive(Debug, Hash, Eq, PartialEq)]
-pub struct PeerName<T = [u8; 100]>(T);
+pub struct PeerName<T = [u8; PEER_NAME_MAX_LEN]>(T);
 
 pub struct Peer {
     local_idx: u32,
     handshake_state: RwLock<HandshakeState>,
     endpoint: RwLock<Endpoint>,
     allowed_ips: AllowedIps<()>,
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct AllowedIp {
-    pub ip: Ipv4Addr,
-    pub cidr: u8,
 }
 
 #[derive(Default)]
@@ -225,7 +219,7 @@ impl Peer {
     }
 }
 
-impl std::borrow::Borrow<[u8]> for PeerName<[u8; 100]> {
+impl std::borrow::Borrow<[u8]> for PeerName<[u8; PEER_NAME_MAX_LEN]> {
     fn borrow(&self) -> &[u8] {
         self.0.as_slice()
     }
@@ -243,17 +237,23 @@ impl<'a> PeerName<&'a [u8]> {
     }
 }
 
+const PEER_NAME_MAX_LEN: usize = 100;
+
 #[derive(Error, Debug)]
 #[error("peer name too long: {0}")]
 pub struct PeerNameTooLong(String);
 
-impl PeerName<[u8; 100]> {
+impl PeerName<[u8; PEER_NAME_MAX_LEN]> {
+    pub const fn max_len() -> usize {
+        PEER_NAME_MAX_LEN
+    }
+
     pub fn new(name: &str) -> Result<Self, PeerNameTooLong> {
-        let mut bytes = [0u8; 100];
+        let mut bytes = [0u8; PEER_NAME_MAX_LEN];
         let name_bytes = name.as_bytes();
         let len = name_bytes.len();
 
-        if len > 100 {
+        if len > PEER_NAME_MAX_LEN {
             Err(PeerNameTooLong(name.to_string()))
         } else {
             bytes[..len].copy_from_slice(name_bytes);

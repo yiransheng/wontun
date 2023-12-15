@@ -30,7 +30,7 @@ const HANDSHAKE_INIT: u8 = 1;
 const HANDSHAKE_RESPONSE: u8 = 2;
 const PACKET_DATA: u8 = 3;
 
-const HANDSHAKE_INIT_SIZE: usize = 105;
+const HANDSHAKE_INIT_SIZE: usize = PeerName::max_len() + 5;
 const HANDSHAKE_RESPONSE_SIZE: usize = 9;
 const DATA_MIN_SIZE: usize = 5;
 
