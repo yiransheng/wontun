@@ -248,7 +248,7 @@ impl Device {
         Ok(())
     }
 
-    fn take_action<'a>(&self, peer: &Peer, action: Action<'a>) {
+    fn take_action(&self, peer: &Peer, action: Action<'_>) {
         match action {
             Action::WriteToTunn(data, src_addr) => {
                 if peer.is_allowed_ip(src_addr) {

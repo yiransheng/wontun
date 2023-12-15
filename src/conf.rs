@@ -1,6 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::str::FromStr;
 
+use ip_network::IpNetworkParseError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -9,8 +10,11 @@ pub enum ConfError {
     #[error("invalid ini: {0}")]
     Ini(#[from] serde_ini::de::Error),
 
-    #[error("invalid ip address: {0}")]
+    #[error("invalid cidr address: {0}")]
     IpFormat(String),
+
+    #[error("invalid cidr notation: {0}")]
+    IpNetworkParseError(#[from] IpNetworkParseError),
 
     #[error("multiple interface definition")]
     ExtraInterface,
@@ -19,7 +23,7 @@ pub enum ConfError {
     MissingInterface,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 pub struct Conf {
     pub interface: InterfaceConf,
     pub peers: Vec<PeerConf>,
@@ -55,21 +59,20 @@ impl Conf {
                     Endpoint,
                     AllowedIPs,
                 } => {
-                    let allowed_ips: Vec<_> = AllowedIPs
+                    let allowed_ips: Result<Vec<_>, _> = AllowedIPs
                         .as_deref()
                         .unwrap_or("")
                         .split(',')
-                        .map(|allowed_ip| allowed_ip.trim())
-                        .filter_map(|allowed_ip| {
-                            let ipn =
-                                ip_network::Ipv4Network::from_str_truncate(allowed_ip).ok()?;
-                            Some((ipn.network_address(), ipn.netmask()))
+                        .filter_map(|allowed_ip| Some(allowed_ip.trim()).filter(|s| !s.is_empty()))
+                        .map(|allowed_ip| -> Result<_, IpNetworkParseError> {
+                            let ipn = ip_network::Ipv4Network::from_str_truncate(allowed_ip)?;
+                            Ok((ipn.network_address(), ipn.netmask()))
                         })
                         .collect();
                     let endpoint = Endpoint.and_then(|ep| SocketAddrV4::from_str(&ep).ok());
                     let peer = PeerConf {
                         name: Name,
-                        allowed_ips,
+                        allowed_ips: allowed_ips?,
                         endpoint,
                     };
                     peers.push(peer);
@@ -103,19 +106,19 @@ impl Conf {
 fn parse_cidr(cidr: &str) -> Result<(Ipv4Addr, u8), ConfError> {
     let (ip_str, subnet_str) = cidr
         .split_once('/')
-        .ok_or_else(|| ConfError::IpFormat("Invalid CIDR format".to_string()))?;
+        .ok_or_else(|| ConfError::IpFormat("Invalid CIDR format: {cidr}".to_string()))?;
 
     let ip = ip_str
         .parse::<Ipv4Addr>()
-        .map_err(|_| ConfError::IpFormat("Invalid IP address".to_string()))?;
+        .map_err(|_| ConfError::IpFormat("Invalid IP address: {cidr}".to_string()))?;
 
     let subnet = subnet_str
         .parse::<u8>()
-        .map_err(|_| ConfError::IpFormat("Invalid subnet mask".to_string()))?;
+        .map_err(|_| ConfError::IpFormat("Invalid subnet mask: {cidr}".to_string()))?;
 
     if subnet > 32 {
         return Err(ConfError::IpFormat(
-            "Subnet mask must be in the range 0-32".to_string(),
+            "Subnet mask must be in the range 0-32: {cidr}".to_string(),
         ));
     }
 
@@ -177,6 +180,30 @@ AllowedIPs=192.0.2.1/24
                 }
             ],
             conf_items
+        );
+
+        let conf = Conf::parse_from(input).unwrap();
+        assert_eq!(
+            Conf {
+                interface: InterfaceConf {
+                    name: "client".into(),
+                    address: (Ipv4Addr::from([192, 0, 2, 2]), 24),
+                    listen_port: 19988
+                },
+                peers: vec![
+                    PeerConf {
+                        name: "node1".into(),
+                        endpoint: None,
+                        allowed_ips: vec![],
+                    },
+                    PeerConf {
+                        name: "node2".into(),
+                        endpoint: None,
+                        allowed_ips: vec![(Ipv4Addr::from([192, 0, 2, 0]), 24)],
+                    }
+                ],
+            },
+            conf
         );
     }
 }
