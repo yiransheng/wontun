@@ -45,6 +45,12 @@ enum HandshakeState {
     Connected { remote_idx: u32 },
 }
 
+impl Default for Peer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Peer {
     pub fn new() -> Self {
         Self {
@@ -123,7 +129,7 @@ impl Peer {
 
             *state = HandshakeState::HandshakeSent;
 
-            eprintln!("Sending handshake: {:?}", &packet);
+            tracing::debug!("sending handshake");
             Action::WriteToNetwork(&dst[..n])
         } else {
             Action::None
@@ -157,7 +163,7 @@ impl Peer {
         let mut state = self.handshake_state.write();
 
         if let HandshakeState::None | HandshakeState::Connected { .. } = &*state {
-            eprintln!("  handle handshake init");
+            tracing::debug!("received handshake");
             *state = HandshakeState::HandshakeReceived {
                 remote_idx: msg.assigned_idx,
             };
@@ -182,7 +188,8 @@ impl Peer {
     ) -> Action<'a> {
         let mut state = self.handshake_state.write();
         if let HandshakeState::HandshakeSent = &*state {
-            eprintln!("  handle handshake response");
+            tracing::debug!("received handshake response");
+
             *state = HandshakeState::Connected {
                 remote_idx: msg.assigned_idx,
             };
@@ -199,7 +206,7 @@ impl Peer {
         match &*state {
             HandshakeState::Connected { .. } => (),
             HandshakeState::HandshakeReceived { remote_idx } => {
-                eprintln!("..received first data packet");
+                tracing::debug!("received a first data packet, transitioning to Connected");
                 let remote_idx = *remote_idx;
                 drop(state);
 

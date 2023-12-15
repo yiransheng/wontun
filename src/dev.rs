@@ -1,8 +1,8 @@
 use std::collections::HashMap;
+use std::io;
 use std::net::{SocketAddr, UdpSocket};
 use std::os::fd::{AsRawFd, BorrowedFd};
 use std::sync::Arc;
-use std::{eprintln, io};
 
 use tun_tap::Iface;
 
@@ -113,12 +113,12 @@ impl Device {
             match token {
                 Token::Tun => {
                     if let Err(err) = self.handle_tun(&mut t) {
-                        eprintln!("tun error: {:?}", err);
+                        tracing::error!("tun error {:?}", err);
                     }
                 }
                 Token::Sock(SockID::Disconnected) => {
                     if let Err(err) = self.handle_udp(&self.udp, &mut t) {
-                        eprintln!("udp error: {:?}", err);
+                        tracing::error!("udp error {:?}", err);
                     }
                 }
                 Token::Sock(SockID::ConnectedPeer(i)) => {
@@ -127,7 +127,7 @@ impl Device {
                     };
                     if let Some(conn) = peer.endpoint().conn.as_deref() {
                         if let Err(err) = self.handle_connected_peer(conn, peer, &mut t) {
-                            eprintln!("udp error: {:?}", err);
+                            tracing::error!("udp error {:?}", err);
                         }
                     }
                 }
@@ -136,8 +136,6 @@ impl Device {
     }
 
     pub fn start(&self) -> io::Result<()> {
-        eprintln!("Start!");
-
         self.poll
             .register_read(Token::Sock(SockID::Disconnected), self.udp.as_ref())?;
 
@@ -173,14 +171,14 @@ impl Device {
                 }
                 _ => continue,
             };
-            eprintln!("Got Ipv4 packet of size: {nbytes}, {src} -> {dst}, from tun0");
+            tracing::trace!("Got Ipv4 packet of size: {nbytes}, {src} -> {dst}, from tun0");
+
             let Some(peer) = self.peers_by_ip.get(dst.into()) else {
-                eprintln!("  no peer.");
+                tracing::debug!("no peer for this ip: {dst}");
                 continue;
             };
             match peer.encapsulate(&src_buf[..nbytes], &mut thread_data.dst_buf) {
                 Action::WriteToTunn(data, src_addr) => {
-                    eprintln!("To run. {src_addr}, {}", peer.is_allowed_ip(src_addr));
                     if peer.is_allowed_ip(src_addr) {
                         let _ = self.iface.send(data);
                     }
@@ -207,20 +205,15 @@ impl Device {
             let peer = match packet {
                 Packet::Empty => continue,
                 Packet::HandshakeInit(ref msg) => {
-                    eprintln!("Handshake init received {:?}", msg);
                     self.peers_by_name.get(msg.sender_name.as_slice())
                 }
                 Packet::HandshakeResponse(ref msg) => {
-                    eprintln!("Handshake response received {:?}", msg);
                     self.peers_by_index.get(msg.sender_idx as usize)
                 }
-                Packet::Data(ref msg) => {
-                    eprintln!("data recieved");
-                    self.peers_by_index.get(msg.sender_idx as usize)
-                }
+                Packet::Data(ref msg) => self.peers_by_index.get(msg.sender_idx as usize),
             };
             if peer.is_none() {
-                eprintln!("no peer");
+                tracing::trace!("no peer found for incoming packet");
             }
             let Some(peer) = peer else {
                 continue;
@@ -242,7 +235,7 @@ impl Device {
                             .expect("epoll add");
                     }
                     Err(err) => {
-                        eprintln!("error connecting to peer: {:?}", err);
+                        tracing::debug!("error connecting to peer: {:?}", err);
                     }
                 }
             }
@@ -250,12 +243,10 @@ impl Device {
             match peer.handle_incoming_packet(packet, &mut thread_data.dst_buf) {
                 Action::WriteToTunn(data, src_addr) => {
                     if peer.is_allowed_ip(src_addr) {
-                        eprintln!("to tun..");
                         let _ = self.iface.send(data);
                     }
                 }
                 Action::WriteToNetwork(data) => {
-                    eprintln!("to network.. {:?}", data);
                     let _ = self.send_over_udp(peer, data);
                 }
                 Action::None => (),
@@ -280,12 +271,10 @@ impl Device {
             match peer.handle_incoming_packet(packet, &mut thread_data.dst_buf) {
                 Action::WriteToTunn(data, src_addr) => {
                     if peer.is_allowed_ip(src_addr) {
-                        eprintln!("to tun..");
                         let _ = self.iface.send(data);
                     }
                 }
                 Action::WriteToNetwork(data) => {
-                    eprintln!("to network.. {:?}", data);
                     let _ = self.send_over_udp(peer, data);
                 }
                 Action::None => (),

@@ -43,7 +43,7 @@ fn main() -> anyhow::Result<()> {
 
     for peer_conf in &conf.peers {
         let peer_name = PeerName::new(&peer_conf.name)?;
-        let mut peer = Peer::new();
+        let mut peer = Peer::default();
         if let Some(endpoint) = peer_conf.endpoint {
             peer.set_endpoint(endpoint);
         }

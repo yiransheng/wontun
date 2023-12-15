@@ -8,7 +8,7 @@ IP=$(./wontun-conf --conf tun0.conf | jq -r '"\(.interface.address[0])/\(.interf
 
 setcap 'cap_net_admin=eip'  ./wontun
 
-./wontun --conf tun0.conf &
+./wontun --conf tun0.conf --log-level debug &
 pid=$!
 
 ip addr add $IP dev tun0
