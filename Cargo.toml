@@ -16,6 +16,9 @@ serde = { version = "1.0.0", features = ["derive"] }
 serde_ini = { git = "https://github.com/arcnmx/serde-ini.git", rev = "eb9d637" }
 thiserror = "1.0.50"
 serde_json = "1.0.108"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+anyhow = "1.0.75"
 
 [[bin]]
 name = "wontun"

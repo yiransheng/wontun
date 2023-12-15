@@ -4,6 +4,7 @@ use std::io;
 use std::sync::Arc;
 
 use parking_lot::{RwLock, RwLockReadGuard};
+use thiserror::Error;
 
 use crate::allowed_ip::AllowedIps;
 use crate::packet::{HandshakeInit, HandshakeResponse, Packet, PacketData};
@@ -235,14 +236,18 @@ impl<'a> PeerName<&'a [u8]> {
     }
 }
 
+#[derive(Error, Debug)]
+#[error("peer name too long: {0}")]
+pub struct PeerNameTooLong(String);
+
 impl PeerName<[u8; 100]> {
-    pub fn new(name: &str) -> Result<Self, &str> {
+    pub fn new(name: &str) -> Result<Self, PeerNameTooLong> {
         let mut bytes = [0u8; 100];
         let name_bytes = name.as_bytes();
         let len = name_bytes.len();
 
         if len > 100 {
-            Err(name)
+            Err(PeerNameTooLong(name.to_string()))
         } else {
             bytes[..len].copy_from_slice(name_bytes);
             Ok(PeerName(bytes))
