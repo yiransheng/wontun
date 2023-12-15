@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{bail, Context};
 use clap::Parser;
@@ -18,6 +18,9 @@ struct Args {
 
     #[arg(long)]
     fwmark: Option<u32>,
+
+    #[arg(long)]
+    num_threads: Option<usize>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -57,8 +60,16 @@ fn main() -> anyhow::Result<()> {
         dev.add_peer(peer_name, peer);
     }
 
+    let dev = Arc::new(dev);
+    for i in 1..args.num_threads.unwrap_or(4) {
+        let d = Arc::clone(&dev);
+        std::thread::spawn(move || {
+            d.event_loop(i);
+        });
+    }
+
     dev.start()?;
-    dev.wait();
+    dev.event_loop(0);
 
     Ok(())
 }

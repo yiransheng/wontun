@@ -106,13 +106,16 @@ impl Device {
         self.peers_by_index.push(peer);
     }
 
-    pub fn wait(&self) {
+    pub fn event_loop(&self, i: usize) {
+        tracing::trace!("event loop, thread={i}");
         let mut t = ThreadData {
             src_buf: [0; BUF_SIZE],
             dst_buf: [0; BUF_SIZE],
         };
 
         while let Ok(token) = self.poll.wait() {
+            tracing::trace!("epoll: {:?} @ {i}", token);
+
             match token {
                 Token::Tun => {
                     if let Err(err) = self.handle_tun(&mut t) {
