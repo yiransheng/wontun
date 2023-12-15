@@ -3,45 +3,61 @@
 cargo b --release
 ext=$?
 if [[ $ext -ne 0 ]]; then
-	exit $ext
+    exit $ext
 fi
 
 cleanup() {
     echo "Signal caught, killing the Docker container..."
-    docker kill wontun-remote
+    docker kill "wontun-remote-$1"
     exit 0
 }
 
-# Check if an argument is provided
-if [ $# -eq 0 ]; then
-    echo "Usage: $0 <client|server>"
+# Check if at least one argument is provided
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 host | docker <conf>"
     exit 1
 fi
 
-# Run based on the provided argument
+# Handle the first argument
 case "$1" in
-    client)
-        echo "run client"
-        ./scripts/run_client.sh
+    host)
+        # Execute the host script
+        ./scripts/run_host.sh
         ;;
-    server)
-        make wontun-remote-docker
+    docker)
+        # Check if the 'conf' argument is provided
+        if [ $# -eq 2 ]; then
+            make wontun-remote-docker
 
-        # Set trap for INT and TERM signals
-        trap cleanup INT TERM
+            CONF=$2
 
-        echo "run server"
-        # Run the Docker container in the background
-        docker run --name wontun-remote \
-          --rm --network=wontun-test --cap-add=NET_ADMIN \
-          --device=/dev/net/tun wontun-remote:latest &
+            # Set trap for INT and TERM signals
+            trap 'cleanup $CONF' INT TERM
 
-        # Wait for the Docker container process to exit
-        wait $!
+            echo "run docker"
+            # Run the Docker container in the background
+            docker run \
+                --name "wontun-remote-$CONF" \
+                --env WONTUN_CONF=$CONF \
+                --rm \
+                --network=wontun-test \
+                --cap-add=NET_ADMIN \
+                --cap-add=SYS_MODULE \
+                --device=/dev/net/tun \
+                --sysctl="net.ipv4.conf.all.src_valid_mark=1" \
+                --sysctl="net.ipv4.ip_forward=1" \
+                wontun-remote:latest &
+
+            # Wait for the Docker container process to exit
+            wait $!
+        else
+            echo "Error: 'conf' argument is required for docker"
+            exit 1
+        fi
         ;;
     *)
         echo "Invalid argument: $1"
-        echo "Usage: $0 <client|server>"
+        echo "Usage: $0 host | docker <conf>"
         exit 1
         ;;
 esac

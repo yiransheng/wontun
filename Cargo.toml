@@ -10,7 +10,20 @@ nix = { version = "0.27.1", features = ["socket", "event"] }
 parking_lot = "0.12.1"
 socket2 = "0.5.5"
 clap = { version = "^4.4.8", features = ["derive"] }
+ip_network = "0.4.1"
+ip_network_table = "0.2.0"
+serde = { version = "1.0.0", features = ["derive"] }
+serde_ini = { git = "https://github.com/arcnmx/serde-ini.git", rev = "eb9d637" }
+thiserror = "1.0.50"
+serde_json = "1.0.108"
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+anyhow = "1.0.75"
 
 [[bin]]
 name = "wontun"
 path = "src/wontun.rs"
+
+[[bin]]
+name = "wontun-conf"
+path = "src/wontun-conf.rs"
